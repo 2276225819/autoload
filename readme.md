@@ -23,5 +23,5 @@ composer组件下载器 php版，免去下载安装composer的烦恼 。
 
 [ADD] 安装完成后删除全部zip包
 
-[ADD] 缓存class映射
+[ADD] 缓存class映射关系
 
