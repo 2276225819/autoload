@@ -1,5 +1,4 @@
 <?php include "vendor/autoload.php";
 
-test();
-
-
+print_r(new Router);
+  
