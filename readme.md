@@ -1,8 +1,8 @@
-#composer
+#autoload
 
 composer组件下载器 php版，免去下载安装composer的烦恼 。
 
-##HowTo Use
+##使用方法
 
 和composer大致相同，把autoload.php扔到vendor目录后，
 
@@ -13,7 +13,7 @@ composer组件下载器 php版，免去下载安装composer的烦恼 。
 目前状态：开发中
 
 
-##Todo List  
+##开发记录
  
 [BUG] 可选的下载版本（当前始终下载最新版本
 
