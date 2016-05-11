@@ -1,0 +1,9 @@
+{
+	"name":"2276225819/autoload",
+	"require":{
+		"2276225819/autoload":"1.0"
+	},
+	"autoload":{
+		"file":["src/test.php"] 
+	}
+}
