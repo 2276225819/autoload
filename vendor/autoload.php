@@ -174,48 +174,7 @@ function vendor($name,$ver=''){
 	}  
 	return array('name'=>$name,'src'=>@$src);
 }
-
-//加载全部 files classmap
-function autoload_vendor( ){ 
-	$c = json_decode(file_get_contents(__DIR__.'/autoload.lock'),true);
-	 
-	foreach (@(array)$c[1] as $src=>$vendor) {
-		foreach (@(array)$vendor['files'] as $key => $value) {
-			include_once dirname($src).'/'.$value;
-		}	 
-		foreach (@(array)$vendor['classmap'] as  $value) {  
-			print_r(glob( (dirname($src).'/'.$value.'*') ));
-			foreach (glob( (dirname($src).'/'.$value.'*') ) as  $v) {
-				if(strstr($v,'.php')){  
-					include_once $v;
-				}
-			}   
-		} 
-		
-	} 
-}
-//加载psr-0 psr-4
-function autoload_find($name=''){  
-	$c = json_decode(file_get_contents(__DIR__.'/autoload.lock'),true); 
-	foreach ($c[0] as $key => $value) {
-		if( strstr($name,$key) and $ss = join(explode($key,$name)) ){    
-			$value['src'] = preg_replace('/\/$/','',$value['src']);
-			$file =  dirname($value['vendor']).'/'.$value['src'].'/'. str_replace('\\','/',$ss)  .'.php';
-			if(isset($files[$value['vendor']])){ 
-				foreach ($files[$value['vendor']] as $src)  
-					if(file_exists($d = dirname($value['vendor']).'/'.$src)) require_once $d;
-					else  die($d); 
-				unset($files[$value['vendor']]);
-			}
-			//echo "\n".$name. '        '.$file; 
-			if(file_exists($file)){
-				require_once $file;  
-				return true; 
-			}
-		}
-	}   
-}
-
+ 
 class AutoLoad{
 	
 	public $ns=array();
