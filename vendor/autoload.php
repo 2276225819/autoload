@@ -7,20 +7,24 @@ ini_set('display_errors','On');
 
 if(file_exists(__DIR__.'/autoload.lock')){  
 	$a = new AutoLoad();  
-	list($a->ns,$a->in,$a->prs) = json_decode( file_get_contents(__DIR__.'/autoload.lock') , true); 
-	$a->init();
+	//list($a->ns,$a->in,$a->prs) = json_decode( file_get_contents(__DIR__.'/autoload.lock') , true);   
+	list($a->ns,$a->in,$a->prs) = include __DIR__.'/autoload.lock';            
+	$a->bootstrap();
   
 }
 
+ 
+
+
 elseif(isset($_GET['install'])){  
 	$a = new AutoLoad();  	
-	$a->install(); 
-	file_put_contents( __DIR__.'/autoload.lock', json_encode(array($a->ns,$a->in,$a->prs)) );  
- 
+	$a->install();  
+	//file_put_contents( __DIR__.'/autoload.lock', json_encode(array($a->ns,$a->in,$a->prs)) );  
+	file_put_contents( __DIR__.'/autoload.lock',"<?php return ". var_export(array($a->ns,$a->in,$a->prs),true).';' );   
 	echo "<script>location=location.pathname</script>"; 
 } 
 elseif(isset($_GET['n'])){  
-	echo json_encode( vendor($_GET['n']) );
+	echo json_encode( vendor($_GET['n'],$_GET['v']) );
 	exit;
 } 
 elseif(isset($_GET['require'])){
@@ -29,6 +33,9 @@ elseif(isset($_GET['require'])){
 	if(!file_exists($_GET['require'].'composer.json'))die("0");
 	$data = json_decode( file_get_contents( $_GET['require'].'composer.json'),true );
 	
+	if(empty($data['require']) ){ 
+		exit ;
+	}
 	foreach ($data['require'] as $key => $value) { 
 		if(!strstr($key,'/'))  unset($data['require'][$key]) ;    
 	}	 
@@ -52,13 +59,17 @@ elseif(true){
 		body{ line-height:32px;}
 		.list{padding-left:20px;}
 		input{    margin: 18px 0;    padding: 12px 0;    width: 100%;}
-		i{ background: linear-gradient(30deg, #ccf, #fff); box-shadow: 1px 2px 3px #ccc; padding: 10px; animation:f 2s infinite linear;}
-		i.act {animation:none; background:#ccf; border: 1px solid #000;}
-		i.err{animation:none;background:#ddd;  }
+		i{  box-shadow: 1px 2px 3px #ccc; padding: 10px;}
+		button{     border: none; padding: 5px;}
+		i.load{ background: linear-gradient(30deg, #ccf, #fff); animation:f 2s infinite linear; }
+		i.act { background:#ccf; border: 1px solid #000;}
+		i.err{ background:#ddd;  }
 	</style>
 	<div id="root"></div>
 	<input type="button" value="安装完成" onclick="location='?install'">
-	<script src="http://cdn.bootcss.com/jquery/3.0.0-beta1/jquery.min.js"></script> 
+	
+	<!--<script src="/jquery.min.js"></script>  -->
+	<script src="http://cdn.bootcss.com/jquery/3.0.0-beta1/jquery.min.js"></script>
 	<script>
 		window.loaded = [];
 		(function T(url,id){ 
@@ -69,25 +80,26 @@ elseif(true){
 					with({k:k})setTimeout(function(){ 
 						var nid = 'r'+ Math.random().toString().substr(2);
 						var $pb = $('<div><div class="list" id="'+nid+'"></div></div>').appendTo(id);  
-						var $i = $('<i>[<span>正在下载</span>]'+k+' '+d[k] +'</i>').prependTo($pb);
+						var $btn = $("<button>更新 </button>").prependTo($pb);
+						var $i = $('<i>'+k+' '+d[k] +'</i>').prependTo($pb);//[<span>正在下载</span>]
 						var $s = $i.find('span');
-						$.get("?n="+k,function CB(d){   
-							$pb.unbind();
-							try{
-								$i.addClass('act'); 
-								$s.html('下载完成');
-								if(d.length)d=Function("return "+d)(); 
-								if(d['name'])T(d['name'],'#'+nid); 
-							}catch(e){
-								$i.addClass('err');
-								$s.html('下载失败,点击重新下载');
-								$pb.click(function(){
-									$i.removeClass('err').removeClass('act');
-									$.get("?n="+k,CB);
-								});
-								console.log([e,d]);
-							}
-						});  
+						var url = "?n="+k+'&v='+d[k];
+						$btn.click(function UPD(){
+							$i.attr("class","load");
+							$.get(url,function CB(d){    
+								try{
+									$i.addClass('act'); 
+									$s.html('下载完成');
+									if(d.length)d=Function("return "+d)(); 
+									if(d['name'])T(d['name'],'#'+nid); 
+								}catch(e){
+									$i.addClass('err');
+									$s.html('下载失败,点击重新下载'); 
+									console.log([e,d]);
+								}
+							});   
+						}).click();
+						url+="&update";
 					});
 				}
 			}); 
@@ -120,23 +132,61 @@ function download($src,$name){
 	file_put_contents($name,$c = cget($src)); 
 	if(strlen($c)<256){ 
 		unlink($name);
-		die("\n<br>NOT FOUND ".$src);
+		die("\n<br>NOT FOUND ".$src.'   '.strlen($c));
 	} 
 }
 function source($name,$ver){  
-	$data = cget('https://packagist.org/packages/'.$name); 
-	preg_match('`<a href="(https://github.com[^\."]+)`',$data,$arr);    
- 	if(empty($arr)) 
-		 return 'https://codeload.github.com/'.$name.'/zip/master';  
- 
-	$data = cget($arr[1]); 
-	$info = parse_url($arr[1]);  
 	
-	//return 'https://github.com/'.$info['path'].'/archive/master.zip';
-	$v = 'master';//preg_replace('/[^0-9.]/','',$ver);//'5.2';
-	return 'https://codeload.github.com'.$info['path'].'/zip/'.$v ; 
+	$data = cget('https://packagist.org/packages/'.$name);  
+	/*
+	$arrVer = verlist;
+	A.B.*
+	<=A.B.C
+	>=A.B.C
+	!=A.B.C
+	~A.B.C
+	^A.B.C
+	A.B.C|A.B.D 
+	*/
+	
+	
+	preg_match_all('`data-version-id="([^"]+)"`',$data,$arrSourc);      
+	$arrVer = $arrSourc[1];   
+	$v = 'master'; 
+	foreach ((array)explode('|',$ver) as  $val) {
+		if(!$val)continue; 
+		preg_match('/(\D*)([\d\.\*]+)/',$val,$arr);
+ 
+		foreach ($arrVer as $value) {  
+			if(empty($arr[1])){
+				if(preg_match('/'.str_replace('\\*','\d+',preg_quote($arr[2])).'$/',$value)){  
+					$v=$value;  
+				} 
+			}elseif($arr[1]=='~' || $arr[1]=='^'){ 
+				preg_match('/\d+\.\d+\.\d+/',$value,$a);
+				if(isset($a[0]) and version_compare($a[0],$arr[2])>=0){ 
+					$v=$value; 
+				} 
+				
+			} else {
+				if(version_compare($value,$arr[2],$arr[1])>0){
+					$v=$value; 
+				} 
+			} 
+			if($v!='master')break;  
+		}
+		if($v!='master')break;   
+	}    
+	 
+	preg_match('`<a href="(https://github.com[^\."]+)`',$data,$arrSourc);     
+ 	if(empty($arrSourc)) //直接下载master版本
+			 return 'https://codeload.github.com/'.$name."/zip/{$v}";   
+	
+	$data = cget($arrSourc[1]); 
+	$info = parse_url($arrSourc[1]);   
+	return 'https://codeload.github.com'.$info['path']."/zip/{$v}" ; 
 } 
-function zip($file,$temp){ 
+function zip($file,$temp){  
 	$zip = new \ZipArchive; 
 	if( ($res=$zip->open( $file )) !== true){ 
 		print_r($zip);
@@ -159,19 +209,24 @@ function zip($file,$temp){
 		 file_put_contents($temp.$file ,$zip->getFromIndex($i))  ; 
 	} 
 	$zip->close();  
+	return true;
 }
 
-function vendor($name,$ver=''){  
+function vendor($name,$ver='*'){  
 	$dir =  __DIR__.'/'.$name .'/';
-	$json = $dir .'composer.json';//已经解压 
-	if(!file_exists($json)){  
-		$zip = $dir .'zip.zip';//已经下载
-		if(!file_exists($zip)){
+	$json = $dir .'composer.json';//解压 
+	$zip = $dir .'zip.zip';//下载
+	if(isset($_GET['update'])){
+		if(file_exists($zip))unlink($zip); 
+	} 
+	if(isset($_GET['update']) or !file_exists($json)){  
+		if(isset($_GET['update']) or !file_exists($zip)){
 			$src = source($name,$ver); 
 			$src && download($src , $zip );  
-		}
-		zip($zip, $dir ); 
-	}  
+		} 
+		zip($zip, $dir );  
+	} 
+	
 	return array('name'=>$name,'src'=>@$src);
 }
  
@@ -196,7 +251,6 @@ class AutoLoad{
 				} 
 			} 
 			if(isset($data['autoload']['psr-0'])){
-				//print_r($data['autoload']['psr-0']);
 				foreach ($data['autoload']['psr-0'] as  $key=>$value) {
 					if(isset($psr[$key]))die(print_r($psr[$key],true));
 					//$files[$v]['psr'][$key ]=array( 'type'=>'psr-0','src'=>$value,'vendor'=>$v);
@@ -209,19 +263,36 @@ class AutoLoad{
 			if(isset($data['autoload']['classmap'])){ 
 				$classmap[$v] = array_merge(@(array)$classmap[$v] , $data['autoload']['classmap'] );
 			} 
-		}
+		} 
+		//print_r($vendor);exit;
 		
 		$this->install_files($files);
 		foreach ($classmap as $src=>$value) 
 			foreach ($value as $path)  
-				$this->install_classmap( dirname($src).'/'.$path );   
-		$this->prs=$vendor; 
+				$this->install_classmap( dirname($src).'/'.$path );    
+		foreach ($vendor as $class=>$value) 
+			$this->install_psr($class,$value);
+			
+			 
+		//$this->prs=$vendor; 
+	}
+	
+	function install_psr($class,$value){ 
+		$this->ns['------------------------------------']=''; 
+  		$value['src'] = preg_replace('/\/$/','',$value['src']);
+		if($value['type']=='psr-0'){ 
+		} 
+		foreach ($value['src'] as $src) { 
+			$src =  dirname($value['vendor'])."/$src";  
+			$this->install_classmap($src);
+		}
+		
 	}
 	 
 	function install_classmap($src=NULL){  
 		if(strstr($src,'.php') || strstr($src,'.inc') ){
 			$data = file_get_contents($src);
-			if(preg_match('/(class|interface)\s+([\w_]+)[\s\w\\\, ]+{/',$data,$arrC)) { 
+			if(preg_match('/(class|interface|trait)\s+([\w_]+)[\s\w\\\, ]+{/',$data,$arrC)) { 
 				list($_,$_,$class) = $arrC;  
 				if(preg_match('/namespace\s+([\w\\\_]+)/',$data,$arrN)){
 					$class = $arrN[1].'\\'.$class;					
@@ -250,8 +321,9 @@ class AutoLoad{
 	
 	
 	
-	function init(){ 
+	function bootstrap(){ 
 		spl_autoload_register(function($name){   
+			//echo $name."<br>\n";
 			$this->autoload_find($name); 
 		});   
 		$this->autoload_vendor();
@@ -266,9 +338,16 @@ class AutoLoad{
 	function autoload_find($name){ 
 		if( isset($this->ns[$name]) ){
 			include_once $this->ns[$name];  
-		}
-		else{    
 			
+			echo $name."\n";
+		}
+		else{     
+			//debug_print_backtrace();
+			echo "<hr>";
+			echo $name;
+			echo "<hr>";
+			//exit;
+			/*
 			foreach ($this->prs as $key => $value) {
 				if( strstr($name,$key) and $ss = join(explode($key,$name)) ){    
 					$value['src'] = preg_replace('/\/$/','',$value['src']);
@@ -286,8 +365,10 @@ class AutoLoad{
 		
 			//echo "<pre>\n";
 			//echo $name."\n"; 
-			//print_r($this); 
+			//print_r($this);
+			*/
 		}
+		
 	}
 	 
 }
