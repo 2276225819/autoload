@@ -1,6 +1,6 @@
 {
 	"name":"2276225819/autoload",
 	"require":{
-		"Laravel/Laravel":"*" 
+		"Laravel/Laravel":"5.2.0" 
 	}
 }

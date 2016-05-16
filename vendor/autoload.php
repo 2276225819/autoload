@@ -337,9 +337,7 @@ class AutoLoad{
 	}
 	function autoload_find($name){ 
 		if( isset($this->ns[$name]) ){
-			include_once $this->ns[$name];  
-			
-			echo $name."\n";
+			include_once $this->ns[$name];   
 		}
 		else{     
 			//debug_print_backtrace();
