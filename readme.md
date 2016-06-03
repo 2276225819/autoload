@@ -19,9 +19,12 @@ composer组件下载器 php版，免去下载安装composer的烦恼 。
 
 [BUG] 下载超时提醒
 
+[BUG] github调用接口次数限制
+
 [ADD] 可选的下载源（当前为github下载
  
 [ADD] 安装完成后删除全部zip包
 
 [ADD] 缓存class映射
+
 
