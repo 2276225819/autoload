@@ -1,15 +1,8 @@
 <?php	 
 namespace _;
 set_time_limit(100);
-ini_set('display_errors','On');  
-
+ini_set('display_errors','On');   
 session_start();
-
-
-
- 
-function config(){ } 
-
  
 class GithubLoader extends AutoLoader{
 	
@@ -93,69 +86,7 @@ class GithubLoader extends AutoLoader{
  
 }
  
-
-class PackagistLoader extends AutoLoader{
-	
-	public function getTagList($name){
-		return array($name); 
-	}
-	
-	public function getSource($taglist,$ver){
-		$name = $taglist[0];
-			
-		$data = $this->cget('https://packagist.org/packages/'.$name);  
  
-		// $arrVer = verlist;
-		// A.B.*
-		// <=A.B.C
-		// >=A.B.C
-		// !=A.B.C
-		// ~A.B.C
-		// ^A.B.C
-		// A.B.C|A.B.D 
-	 
-		
-		
-		preg_match_all('`data-version-id="([^"]+)"`',$data,$arrSourc);      
-		$arrVer = $arrSourc[1];   
-		$v = 'master'; 
-		foreach ((array)explode('|',$ver) as  $val) {
-			if(!$val)continue; 
-			preg_match('/(\D*)([\d\.\*]+)/',$val,$arr);
-	
-			foreach ($arrVer as $value) {  
-				if(empty($arr[1])){
-					if(preg_match('/'.str_replace('\\*','\d+',preg_quote($arr[2])).'$/',$value)){  
-						$v=$value;  
-					} 
-				}elseif($arr[1]=='~' || $arr[1]=='^'){ 
-					preg_match('/\d+\.\d+\.\d+/',$value,$a);
-					if(isset($a[0]) and version_compare($a[0],$arr[2])>=0){ 
-						$v=$value; 
-					} 
-					
-				} else {
-					if(version_compare($value,$arr[2],$arr[1])>0){
-						$v=$value; 
-					} 
-				} 
-				if($v!='master')break;  
-			}
-			if($v!='master')break;   
-		}    
-		
-		preg_match('`<a href="(https://github.com[^\."]+)`',$data,$arrSourc);     
-		if(empty($arrSourc)) //直接下载master版本
-				return 'https://codeload.github.com/'.$name."/zip/{$v}";   
-		
-		$data = $this->cget($arrSourc[1]); 
-		$info = parse_url($arrSourc[1]);   
-		return 'https://codeload.github.com'.$info['path']."/zip/{$v}" ; 
-		
-	} 
-}
-
-
 
  
 class AutoLoader{
@@ -163,7 +94,7 @@ class AutoLoader{
 	public $in ;
 	public $prs;
 	public $lock_file = __DIR__.'/autoload.lock';
-	public function __construct($opt){
+	public function __construct($opt=array()){
 		foreach ((array)$opt as $key => $value) {
 			$this->$key = $value; 
 		} 
@@ -493,7 +424,7 @@ class AutoLoader{
 
 	public static function bootstrap(){   
 		$class = get_called_class();
-		$al = new $class(config());   
+		$al = new $class( );   
 		if($al->autoload());
 		elseif(isset($_GET['install'])){   
 			$al->install();   exit;
