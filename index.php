@@ -1,5 +1,6 @@
 <?php 
 ini_set('display_errors','On'); 
+ini_set("error_log","php_errors.log");
 ini_set('log_errors','On');
 require  __DIR__.'/vendor/autoload.php';
 

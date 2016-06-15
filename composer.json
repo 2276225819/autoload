@@ -3,5 +3,8 @@
 	"require":{
 		"topthink/thinkphp":"*",
 		"laravel/laravel":"5.0.*"
-	}
+	},
+	"repositories":[ 
+		{"type": "composer", "url":"https://packagist.phpcomposer.com/"}
+	]
 }

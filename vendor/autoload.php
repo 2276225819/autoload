@@ -2,21 +2,19 @@
 namespace ___;
 
 class Basic{ 
-	public $config = array(
-		"require"=>array(),
-		"require-dev"=>array(),
-		"autoload"=>array(),
-		"autoload-dev"=>array(),
-		"repositories"=>array(
-			array(
-				"type"=> "composer",
-				//"url"=> "http://packagist.org/"  
-				"url"=>"http://packagist.phpcomposer.com/",
-			),
-		), 
-	); 	 
+	public $config = '{
+		"require":[],
+		"require-dev":[],
+		"autoload":[],
+		"autoload-dev":[],
+		"repositories":[
+			{"type": "composer", "url":"https://packagist.phpcomposer.com/"},
+			{"type": "composer", "url":"https://packagist.org/"}
+		] 
+	}'; 	 
 	public function getComposePackages($vendor){ 
-		foreach ($this->config['repositories'] as $value) { 
+		$cfg = json_decode($this->config,true);
+		foreach ($cfg['repositories'] as $value) { 
 			$data = json_decode( $this->cget($value['url'].'packages.json') ,true ) ;   
 			if(count($data['provider-includes']) < 2){
 				session_start();
@@ -43,7 +41,8 @@ class Basic{
 					if($va==$vb)return $mysort($aa,$bb);
 					return $va < $vb; 
 				}; 
-				return $mysort($aa,$bb); 
+				return $mysort($aa,$bb);  
+				//return -version_compare($a,$b); 
 			});  
 			return $arr; 
 		}  
@@ -75,36 +74,9 @@ class Basic{
 		}
 		return $data['require'];
 	}
-	
  
-	public function zip($file,$temp){  
-		$zip = new \ZipArchive; 
-		if( ($res=$zip->open( $file )) !== true){ 
-			print_r($zip);
-			die(   "\n<br>failed :" . $file  ); 
-		}
-		
-		$subdir = $zip->getNameIndex(0);  
-		for ($i = 1; $i < $zip->numFiles; $i++)
-		{
-			$filename = $zip->getNameIndex($i); 
-			if (substr($filename, 0, mb_strlen($subdir, "UTF-8")) != $subdir)
-				continue;
-			if(substr($filename,-1)=='/')
-				continue;
-			$file = substr($filename, mb_strlen($subdir, "UTF-8")-1); 
-			$dir = dirname($temp.$file); 
-			
-			if ( !is_dir($dir) )  
-				if (!@mkdir($dir, 777, true));   
-			file_put_contents($temp.$file ,$zip->getFromIndex($i))  ; 
-		} 
-		$zip->close();  
-		return true;
-	}
-	public function unzip($vendor){
-		$basedir = __DIR__.'/'.$vendor.'/';
-		$file =  $basedir.'zip.zip';
+	public function unzip($vendor,$file ){
+		$basedir = __DIR__.'/'.$vendor.'/'; 
 		$zip = new \ZipArchive; 
 		if( ($res=$zip->open( $file )) !== true){  
 			die(   "\n<br>解压文件失败 :" . $file  ); 
@@ -155,13 +127,12 @@ class Basic{
 			}else
 			if($arr[0]=='~' or $arr[0]=='^'){
 				$op = $arr[0];
-				$ix = array('^'=>0,'~'=>1,);  
+				$ix = array('^'=>0,'~'=>0,); //BUG为什么本体和标准不同？（这里是用本体的 
 				$arrv = explode('.',$arr[1]);
 				$arrv[ $ix[$op] ]+=1; 
 				for ($i= $ix[$op] +1; $i < count($arrv); $i++) 
 					$arrv[$i]=0; 
-				$a = $arr[1]; 	$b = implode('.',$arrv);
-				//print_r([$a,$b]);
+				$a = $arr[1]; 	$b = implode('.',$arrv); 
 				foreach ($list as $value)  {
 					$v = $value[0]=='v'? substr($value,1):$value;//v5.1.1 -> 5.1.1 
 					if(version_compare($v,$a)>=0  && version_compare($v,$b)<0 )
@@ -177,10 +148,25 @@ class Basic{
 		}    
 	}
 
+
+	public function del($vendor){ 
+		$basedir = __DIR__.'/'.$vendor; 
+		$d = function($basedir)use(&$d){ 
+			foreach ( array_slice(scandir($basedir ),2) as $url) {
+				$url = $basedir.'/'.$url;
+				if(is_dir($url))$d($url);
+				else unlink($url );
+				// echo "<br>".$url;
+			}  
+			rmdir($basedir);
+		};
+		$d($basedir);  
+	}
+
 }
 
 class Autoload extends Basic {
-	public $lock_file="composer.lock";
+	public $lock_file= __DIR__."/composer.lock";
 	public static function bootstrap(){
 		$class = get_called_class();
 		$al = new $class( );   
@@ -229,6 +215,7 @@ class Autoload extends Basic {
 		//确认初始化完成不再继续安装
 		$js = glob(__DIR__.'/*/*/composer.json'); 
 		$js[] =  __DIR__.'/../composer.json';
+		$this->ns = $this->in = $this->prs = array();
 		$files=$vendor=array();
 		foreach ($js as $v) {
 			$data = json_decode( file_get_contents($v),true );   
@@ -252,8 +239,7 @@ class Autoload extends Basic {
 			if(isset($data['autoload']['classmap'])){ 
 				$classmap[$v] = array_merge(@(array)$classmap[$v] , $data['autoload']['classmap'] );
 			} 
-		} 
-		//print_r($vendor);exit;
+		}  
 		
 		$this->install_files($files);
 		foreach ($classmap as $src=>$value) 
@@ -261,13 +247,12 @@ class Autoload extends Basic {
 				$this->install_classmap( dirname($src).'/'.$path );    
 		foreach ($vendor as $class=>$value) 
 			$this->install_psr($class,$value);
-		  
+		   
 		//$this->prs=$vendor; 
- 
-		//exit;
-		//file_put_contents( $file, json_encode(array($al->ns,$al->in,$al->prs)) );  
+  
 		file_put_contents( $this->lock_file,
 			"<?php return ". var_export(array($this->ns,$this->in,$this->prs),true).';' );   
+ 
 		echo "<script>location=location.pathname</script>"; 
 	}
  
@@ -277,31 +262,39 @@ class Autoload extends Basic {
 		if($value['type']=='psr-0'){ 
 		} 
 		foreach ($value['src'] as $src) { 
-			$src =  dirname($value['vendor'])."/$src";  
-			$this->install_classmap($src);
-		}
-		
+			$src = dirname($value['vendor'])."/$src";  
+			$this->install_classmap($src,$class);
+		} 
 	} 
 	 
-	function install_classmap($src=NULL){  
+	function install_classmap($src=NULL,$cc=''){  
 		if(strstr($src,'.php') || strstr($src,'.inc') ){
-			$data = file_get_contents($src);
+			$data = file_get_contents($src); 
 			if(preg_match('/(class|interface|trait)\s+([\w_]+)[\s\w\\\, ]*{/',$data,$arrC)) { 
-				list($_,$_,$class) = $arrC;  
+				list($_,$_,$cn) = $arrC;  
+				$class = $cn;
 				if(preg_match('/namespace\s+([\w\\\_]+);/',$data,$arrN)){
-					$class = $arrN[1].'\\'.$class;					
+					$class = $arrN[1].'\\'.$cn;			
 				}  
-				//print_r($arrC);
-				//print_r($arrN);
-				$this->ns[$class] = $src; 
+  
+				$this->ns[$class] = $src;   
+				if($class != $cc.$cn ){
+					$this->ns[$cc.$cn] = $src;  
+					//print_r([$class,$cc.' '.$cn,$src]);   
+				}
 			}
 			else{ 
 				//echo $src."\n"; 
 				//array_unshift($this->in,$src); 
 			} 
 		}else{
-			foreach( glob($src.'/*') as $path)
-				$this->install_classmap($path);   
+			foreach( glob($src.'/*') as $path){
+				if($c2 = $cc){
+					if( is_dir($path)) $c2.= basename( $path )  ;
+					if( substr($c2,-1,1) !='\\') $c2.='\\'; 
+				}
+				$this->install_classmap($path,$c2);    
+			}
 		}  
 
 	 
@@ -317,55 +310,47 @@ class Autoload extends Basic {
 	}
 	//	
 	function vendor($vendor,$v='*'){   
-		$dir = __DIR__.'/'.$vendor;
-		$name = $dir.'/zip.zip';
-		$json = $dir.'/composer.json';//解压 
-
-		
 		$vers = $this->getTagList($vendor); 
 		$ver = $this->version_match(array_keys($vers),$v); 
 		foreach ($vers as $key => $value) {
 			$out[]= $key.' '.$value ;
 		}
+		if(empty($vers[$ver]))
+			return array(  'msg'=>'package not found', 'match'=>$v, );
+
+		$src = $vers[$ver]; 
+		$dir = __DIR__.'/'.$vendor;
+		$name = $dir.'/'.basename($src);
+		$json = $dir.'/composer.json';//解压 
+
 		
 		if(file_exists($json)){ 
-			return array(
+			if(file_exists($name)) return array(
 				'msg'=>'已经完成',
 				'name'=>$vendor,
 				'ver'=>$ver , 
-				'v'=>$v,
-				"vs"=>$out,
+				//'v'=>$v, "vs"=>$out,
 			);  
+			$this->del($vendor); 
 		} 
-  
-		if(empty($vers[$ver]))
-			return array(  'msg'=>'找不到', 'match'=>$v, 'url'=>$_SERVER['REQUEST_URI'] );
 
-
-		$this->setup($vendor,$vers[$ver]); 
+		$this->setup($vendor,$src,$name); 
 		return array(
 			'name'=>$vendor,
 			'ver'=>$ver, 
-			'v'=>$v,
-			"vs"=>$out,
+			//'v'=>$v, "vs"=>$out,
 		);
 	}
-	function setup($vendor,$src){
-
-		$dir = __DIR__.'/'.$vendor;
-		$name = $dir.'/zip.zip'; 
-		$json = $dir .'/composer.json';//解压  
-		//print_r([$name,$src]);
+	function setup($vendor,$src,$name){  
 		if ( !is_dir($dir = dirname($name) ) )  
 			if (!@mkdir($dir, 777, true));  
 
-		$c = $this->cget($src);	
-
+		$c = $this->cget($src);	 
 		if(strlen($c)<300){  
 			die("NOT FOUND ".$src.'   \n<br>'. ($c));
 		}  
 		file_put_contents($name,$c); 
-		$this->unzip($vendor);
+		$this->unzip($vendor,$name);
 	}
 
 	
