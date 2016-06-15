@@ -83,9 +83,9 @@ class Basic{
 		}  
 		return $data['require'];
 	}
-	public function loadVendor( $v ){   
-		$vendor = $this->vendor;
-		$vers = $this->getTagList($vendor); 
+	public function loadVendor($req, $v ){   
+		$vendor = $req;
+		$vers = $this->getTagList($req); 
 		$ver = $this->version_match(array_keys($vers),$v); 
 		foreach ($vers as $key => $value) {
 			$out[]= $key.' '.$value ;
@@ -105,9 +105,10 @@ class Basic{
 				'name'=>$vendor,
 				'ver'=>$ver , 
 				//'v'=>$v, "vs"=>$out,
-			);  
+			); 
 			$this->del($vendor); 
 		} 
+ 
 
 		$this->setup($vendor,$src,$name); 
 		return array(
@@ -201,7 +202,8 @@ class Basic{
 			}  
 			rmdir($basedir);
 		};
-		$d($basedir);  
+		$d($basedir);
+		sleep(1);
 	} 
 	public function setup($vendor,$src,$name){  
 		if ( !is_dir($dir = dirname($name) ) )  
@@ -280,13 +282,13 @@ class Autoload extends Basic {
 			if(isset($_GET['install'])){   
 				$class::install(); exit;
 			}
-			elseif(isset($_GET['ll'])){    
-				$al = new $class($_GET['ll']); 
-				if(empty($_GET['vv']))$_GET['vv']='*';
-				echo json_encode( $al->loadVendor( $_GET['vv']) ); exit;
+			elseif(isset($_GET['package']) && isset($_GET['req']) && isset($_GET['ver']) ){    
+				$al = new $class($_GET['package']); 
+				if(empty($_GET['ver']))$_GET['ver']='*';
+				echo json_encode( $al->loadVendor($_GET['req'], $_GET['ver']) ); exit;
 			} 
-			elseif(isset($_GET['rr'])){   
-				$al = new $class($_GET['rr']);  
+			elseif(isset($_GET['package'])){   
+				$al = new $class($_GET['package']);  
 				echo json_encode( $al->getRequire( ) );  exit;
 			}
 			//elseif(isset($_GET['tags'])){ 
@@ -393,19 +395,19 @@ class Autoload extends Basic {
 			})
 			
 			function R(vendor,id){ 
-				$.get("?rr="+vendor,function(d){
+				$.get("?package="+vendor,function(d){
 					if(d && d.substr)d=Function("return "+d)(); 
 					for(var k in d){
 						if(loaded[k])continue; loaded[k]=true;  
 						with({k:k})setTimeout(function(){ 
 							//console.log([k,d[k]]);
-							var $tb = L(k,d[k],id); //is loaded
+							var $tb = L(vendor,k,d[k],id); //is loaded
 							//setTimeout(function(){ 	T(k,$tb); },1000)
 						});
 					}
 				}); 
 			} 
-			function L(vendor,ver,id){ 
+			function L(base,vendor,ver,id){ 
 				var nid = 'r'+ Math.random().toString().substr(2); 
 				var $pb = $('<div><div class="list" id="'+nid+'">').appendTo(id);
 				var $tb = $('<span>').prependTo($pb);
@@ -417,7 +419,7 @@ class Autoload extends Basic {
 					//var $b = $('<i class="" >' +ver+'</i>').appendTo($tb);
 					$i.attr("class","load");  
 					$.ajax({ 
-						url:"?ll="+vendor+'&vv='+ver ,
+						url:"?package="+base+"&req="+vendor+'&ver='+ver ,
 						error:UPD,
 						success:function(d){   
 							if(d && d.substr)d=Function("return "+d)(); 
