@@ -2,7 +2,7 @@
 ini_set('display_errors','On'); 
 ini_set('log_errors','On');
 require  __DIR__.'/vendor/autoload.php';
- 
+
 $app = new Illuminate\Foundation\Application(
     realpath(__DIR__ .'/vendor/laravel/laravel/')
 ); 
@@ -22,7 +22,7 @@ $app->singleton(
 ); 
 
 $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
-
+ 
 $response = $kernel->handle(
     $request = Illuminate\Http\Request::capture()
 );

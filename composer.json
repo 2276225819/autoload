@@ -1,6 +1,7 @@
 {
 	"name":"2276225819/autoload",
 	"require":{
-		"Laravel/Laravel":"5.2.0" 
+		"topthink/thinkphp":"*",
+		"laravel/laravel":"5.0.*"
 	}
 }
