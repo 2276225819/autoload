@@ -1,5 +1,6 @@
 <?php
-namespace ___;
+namespace ___; 
+//版本匹配还是有问题
 
 class Basic{ 
 	public $config = '{
@@ -8,23 +9,23 @@ class Basic{
 		"autoload":[],
 		"autoload-dev":[],
 		"repositories":[
-			{"type": "composer", "url":"https://packagist.phpcomposer.com/"},
-			{"type": "composer", "url":"https://packagist.org/"}
+			{"type": "composer", "url":"https://packagist.org/"},
+			{"type": "composer", "url":"https://packagist.phpcomposer.com/"}
 		] 
-	}'; 	 
-	public function __construct($package){
-		$req = $package;
-		if(!empty($req)) $req = __DIR__.'/'.$req.'/';
-		else $req = __DIR__.'/../';  
- 
+	}';
+	public function __construct($package){ 
 		$this->vendor = $package; 
-		$this->data = array();
-		if( file_exists($req.'composer.json')) { 
-			$this->data = array_merge_recursive( 
-				json_decode($this->config,true),
-				json_decode( file_get_contents( $req.'composer.json'),true )
-			);    
-		}
+		$this->data = json_decode($this->config,true) ;  
+		$req = __DIR__.'/../'; 
+		if(!empty($package)){ 
+			$local_data = json_decode( file_get_contents( $req.'composer.json'),true );
+			$this->data = array_merge_recursive($local_data,$this->data); 
+			$req = __DIR__.'/'.$package.'/';
+		}   
+		if( file_exists($req.'composer.json')) {
+			$data = json_decode( file_get_contents( $req.'composer.json'),true );
+			$this->data = array_merge($this->data,$data); 
+		}    
 	}
 	public function getComposePackages($vendor){ 
 		$cfg = json_decode($this->config,true);
@@ -32,7 +33,7 @@ class Basic{
 			$data = json_decode( $this->cget($value['url'].'packages.json') ,true ) ;   
 			if(count($data['provider-includes']) < 2){
 				session_start();
-				if($all = @$_SESSION['_all']);else{ 
+				if($all = @$_SESSION['all_'.$value['url']]);else{ 
 					foreach ($data['provider-includes'] as $url => $sha);//last    
 					$all = json_decode( $this->cget($value['url'].str_replace('%hash%',end($sha),$url) ) ,true ) ;  
 					$_SESSION['_all'] = $all;
@@ -44,23 +45,17 @@ class Basic{
 				ksort($providers['packages']);
 			} else { 
 				$providers_url  = "/p/".($vendor).'.json';
-				$providers = json_decode( $this->cget($value['url']. $providers_url ) ,true ) ;    
+				$providers = json_decode( $this->cget($value['url']. $providers_url ) ,true ) ;     
 			}  
-			$arr = end($providers['packages']);  
-			uksort($arr,function($a,$b){ 
-				$aa = explode('.',$a); $bb = explode('.',$b); 
-				$mysort = function($aa,$bb) use(&$mysort){ 
-					$va=array_shift($aa);
-					$vb=array_shift($bb); 
-					if($va==$vb)return $mysort($aa,$bb);
-					return $va < $vb; 
-				}; 
-				return $mysort($aa,$bb);  
-				//return -version_compare($a,$b); 
-			});  
+			$arr = ($providers['packages'][$vendor]);  
+			uksort($arr,function($a,$b){
+				return $this->version_compare($a,$b); 
+			}); 
 			return $arr; 
 		}  
 	}
+
+	
 	public function getTagList($vendor){
 		$arr = array();
 		$packages = $this->getComposePackages($vendor); 
@@ -86,12 +81,15 @@ class Basic{
 	public function loadVendor($req, $v ){   
 		$vendor = $req;
 		$vers = $this->getTagList($req); 
-		$ver = $this->version_match(array_keys($vers),$v); 
+
+ 		$ver = $this->version_match(array_keys($vers),$v); 
+ 		//print_r($vers);exit;
+
 		foreach ($vers as $key => $value) {
 			$out[]= $key.' '.$value ;
 		}
 		if(empty($vers[$ver]))
-			return array(  'msg'=>'package not found', 'match'=>$v, );
+			return array(  'msg'=>'package not found', 'match'=>$v, 'vers'=>$vers, 'ver'=>$ver  );
 
 		$src = $vers[$ver]; 
 		$dir = __DIR__.'/'.$vendor;
@@ -116,6 +114,29 @@ class Basic{
 			'ver'=>$ver, 
 			//'v'=>$v, "vs"=>$out,
 		);
+	}
+	public function version_compare($a,$b,$c='<')
+	{	 
+		if($a[0]=='v')$a=substr($a,1);
+		if($b[0]=='v')$b=substr($b,1);
+		$aa = explode('.',$a); $bb = explode('.',$b); 
+		$mysort = function($aa,$bb) use(&$mysort,$c){ 
+			$va=array_shift($aa);
+			$vb=array_shift($bb); 
+			if(!isset($va) and !isset($vb))return 1;
+			if($va==$vb)return $mysort($aa,$bb); 
+			if(!is_numeric($va))$va=-1;
+			if(!is_numeric($vb))$vb=-1;
+			switch ($c) {
+				case '<':return ($va) < ($vb);
+				case '<=':return ($va) <= ($vb);
+				case '>':return ($va) > ($vb);
+				case '>=':return ($va) >= ($vb); 
+				case '=': return ($va) == ($vb);
+				default: die("version_compare error :".$c);
+			}  
+		}; 
+		return $mysort($aa,$bb);  
 	}
 
 
@@ -171,7 +192,7 @@ class Basic{
 			}else
 			if($arr[0]=='~' or $arr[0]=='^'){
 				$op = $arr[0];
-				$ix = array('^'=>0,'~'=>0,); //BUG为什么本体和标准不同？（这里是用本体的 
+				$ix = array('^'=>0,'~'=>0,); 
 				$arrv = explode('.',$arr[1]);
 				$arrv[ $ix[$op] ]+=1; 
 				for ($i= $ix[$op] +1; $i < count($arrv); $i++) 
@@ -179,13 +200,13 @@ class Basic{
 				$a = $arr[1]; 	$b = implode('.',$arrv); 
 				foreach ($list as $value)  {
 					$v = $value[0]=='v'? substr($value,1):$value;//v5.1.1 -> 5.1.1 
-					if(version_compare($v,$a)>=0  && version_compare($v,$b)<0 )
+					if($this->version_compare($v,$a,'>=')  && $this->version_compare($v,$b,'<') )
 						return $value;  
 				}
 			}else{  
 				foreach ($list as $value)   {
 					$v = $value[0]=='v'? substr($value,1):$value;//v5.1.1 -> 5.1.1
-					if(version_compare($value,$arr[1], $arr[0]) >0)
+					if($this->version_compare($value,$arr[1], $arr[0]) )
 						return $value; 
 				}
 			} 

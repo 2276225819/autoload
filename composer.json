@@ -4,7 +4,9 @@
 		"topthink/thinkphp":"*",
 		"laravel/laravel":"5.0.*"
 	},
+	"autoload":{
+		"classmap":["src"]
+	},
 	"repositories":[ 
-		{"type": "composer", "url":"https://packagist.phpcomposer.com/"}
 	]
 }
