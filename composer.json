@@ -2,7 +2,8 @@
 	"name":"2276225819/autoload",
 	"require":{
 		"2276225819/Jqview":"*",
-		"topthink/thinkphp":"*"	
+		"topthink/thinkphp":"*",
+		"laravel/laravel":"5.0.*"
 	},
 	"autoload":{
 		"classmap":["srcc"]
