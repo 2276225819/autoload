@@ -1,9 +1,0 @@
-{
-	"name":"2276225819/Jqview",
-	"require":{
-	 	"electrolinux/phpquery":"*"
-	},
-	"autoload":{
-		"classmap":[ "src" ]
-	} 
-}

@@ -8,57 +8,75 @@ class Basic{
 		"require-dev":[],
 		"autoload":[],
 		"autoload-dev":[],
-		"repositories":[
-			{"type": "composer", "url":"https://packagist.org/"},
-			{"type": "composer", "url":"https://packagist.phpcomposer.com/"}
+		"repositories":[ '.
+		// '{"type": "composer", "url":"https://packagist.phpcomposer.com/"},'. 
+		 '{"type": "composer", "url":"https://packagist.org/"} 
 		] 
 	}';
-	public function __construct($package){ 
-		$this->vendor = $package; 
+	public function __construct($package=''){ 
+		$this->vendor = $package;
 		$this->data = json_decode($this->config,true) ;  
-		$req = __DIR__.'/../'; 
-		if(!empty($package)){ 
-			$local_data = json_decode( file_get_contents( $req.'composer.json'),true );
-			$this->data = array_merge_recursive($local_data,$this->data); 
-			$req = __DIR__.'/'.$package.'/';
-		}   
+ 
+		$req = __DIR__.'/../';  
+		if( $package ) {
+			if(file_exists($req.'composer.json')){ 
+				$local_data = json_decode( file_get_contents( $req.'composer.json'),true ); 
+				foreach (array('repositories') as $root)  //root
+					$this->data[$root] = array_merge_recursive( $local_data[$root],$this->data[$root]  );   
+			}
+			$req = __DIR__.'/'.$package.'/'; 
+		}      
 		if( file_exists($req.'composer.json')) {
 			$data = json_decode( file_get_contents( $req.'composer.json'),true );
-			$this->data = array_merge($this->data,$data); 
-		}    
+			$this->data = array_merge_recursive($this->data,$data); 
+		}      
+
 	}
-	public function getComposePackages($vendor){ 
-		$cfg = json_decode($this->config,true);
-		foreach ($cfg['repositories'] as $value) { 
-			$data = json_decode( $this->cget($value['url'].'packages.json') ,true ) ;   
-			if(count($data['provider-includes']) < 2){
-				session_start();
-				if($all = @$_SESSION['all_'.$value['url']]);else{ 
-					foreach ($data['provider-includes'] as $url => $sha);//last    
-					$all = json_decode( $this->cget($value['url'].str_replace('%hash%',end($sha),$url) ) ,true ) ;  
-					$_SESSION['_all'] = $all;
-				} 
-				if(empty($all['providers'][$vendor]))return;
-				$hash = end($all['providers'][$vendor]);  
-				$providers_url  = str_replace(array('%package%','%hash%'),array($vendor, $hash ),$data['providers-url']);
-				$providers = json_decode( $this->cget($value['url']. $providers_url ) ,true ) ;   
-				ksort($providers['packages']);
-			} else { 
-				$providers_url  = "/p/".($vendor).'.json';
-				$providers = json_decode( $this->cget($value['url']. $providers_url ) ,true ) ;     
-			}  
-			$arr = ($providers['packages'][$vendor]);  
-			uksort($arr,function($a,$b){
-				return $this->version_compare($a,$b); 
-			}); 
-			return $arr; 
+	public function getComposerItem($vendor,$base_url){
+	 
+		$data = json_decode( $this->cget($base_url.'packages.json') ,true ) ;   
+		if(count($data['provider-includes']) < 2){
+			if($all = @$_SESSION['all_'.$base_url]);else{ 
+				foreach ($data['provider-includes'] as $url => $sha);//last    
+				$all = json_decode( $this->cget($base_url.str_replace('%hash%',end($sha),$url) ) ,true ) ;  
+				$_SESSION['_all'] = $all;
+			} 
+			if(empty($all['providers'][$vendor]))return;
+			$hash = end($all['providers'][$vendor]);  
+			$providers_url  = str_replace(array('%package%','%hash%'),array($vendor, $hash ),$data['providers-url']);
+			$providers = json_decode( $this->cget($base_url. $providers_url ) ,true ) ;   
+			ksort($providers['packages']);
+		} else { 
+			$providers_url  = "/p/".($vendor).'.json';
+			$providers = json_decode( $this->cget($base_url. $providers_url ) ,true ) ;     
 		}  
+
+		$arr = ($providers['packages'][$vendor]);  
+		if(empty($arr))return array();
+		uksort($arr,function($a,$b){
+			return $this->version_compare($a,$b); 
+		});  
+		return $arr;  
+	}
+	public function getPackageItem($vendor,$pk){ 
+		if($vendor!=$pk['name'] || empty($pk['version']) )return array();
+		return array( $pk['version']=>$pk );
 	}
 
 	
 	public function getTagList($vendor){
-		$arr = array();
-		$packages = $this->getComposePackages($vendor); 
+		$arr = array(); 
+		//session_start();
+		foreach ($this->data['repositories'] as $value) { 
+			switch ($value['type']) {
+				case 'composer':$packages = $this->getComposerItem($vendor,$value['url']);  break;
+				case 'package':$packages = $this->getPackageItem($vendor,$value['package']);  break; 
+				default: $packages=array();break;
+			}
+			if($packages)  break; 
+		} 
+
+		
 		if($packages)foreach ($packages as $key => $value) 
 			$arr[$key] = $value['dist']['url']; 
 		return $arr;
@@ -152,11 +170,11 @@ class Basic{
 		for ($i = 1; $i < $zip->numFiles; $i++)
 		{
 			$filename = $zip->getNameIndex($i); 
-			if (substr($filename, 0, mb_strlen($subdir, "UTF-8")) != $subdir)
+			if (substr($filename, 0,  strlen($subdir )) != $subdir)
 				continue;
 			if(substr($filename,-1)=='/')
 				continue;
-			$file = substr($filename, mb_strlen($subdir, "UTF-8")-1); 
+			$file = substr($filename,  strlen($subdir )-1); 
 			$dir = dirname($basedir.$file); 
 			
 			if ( !is_dir($dir) )  
@@ -169,6 +187,7 @@ class Basic{
 		return true; 
 	} 
 	public function cget($src){
+		if($src[0]=='/')$src="http://{$_SERVER['SERVER_NAME']}:{$_SERVER['SERVER_PORT']}{$src}";
 		$ch = curl_init(); 
 		curl_setopt($ch, CURLOPT_URL, $src); 
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -232,7 +251,7 @@ class Basic{
 
 		$c = $this->cget($src);	 
 		if(strlen($c)<300){  
-			die("NOT FOUND ".$src.'   \n<br>'. ($c));
+			die("CURL NOT FOUND ".$src."   \n<br>" . ($c));
 		}  
 		file_put_contents($name,$c); 
 		$this->unzip($vendor,$name);
@@ -260,12 +279,11 @@ class Basic{
 				if(preg_match('/namespace\s+([\w\\\_]+);/',$data,$arrN)){
 					$class = $arrN[1].'\\'.$cn;			
 				}  
-  
-				$this->ns[$class] = $src;   
+  				$this->ns[$class] = $src;    
 				if($class != $cc.$cn ){
 					$this->ns[$cc.$cn] = $src;  
 					//print_r([$class,$cc.' '.$cn,$src]);   
-				}
+				} 
 			}
 			else{ 
 				//echo $src."\n"; 
@@ -304,12 +322,12 @@ class Autoload extends Basic {
 				$class::install(); exit;
 			}
 			elseif(isset($_GET['package']) && isset($_GET['req']) && isset($_GET['ver']) ){    
-				$al = new $class($_GET['package']); 
+				$al = new $class($_GET['req']); 
 				if(empty($_GET['ver']))$_GET['ver']='*';
 				echo json_encode( $al->loadVendor($_GET['req'], $_GET['ver']) ); exit;
 			} 
 			elseif(isset($_GET['package'])){   
-				$al = new $class($_GET['package']);  
+				$al = new $class( $_GET['package'] );   
 				echo json_encode( $al->getRequire( ) );  exit;
 			}
 			//elseif(isset($_GET['tags'])){ 
@@ -367,11 +385,10 @@ class Autoload extends Basic {
 			if(isset($data['autoload']['classmap'])){ 
 				$classmap[$v] = array_merge(@(array)$classmap[$v] , $data['autoload']['classmap'] );
 			} 
-		}  
-		
+		}    
 		$class = get_called_class();
 		$al = new $class('');  
-		$al->prs = array();
+		$al->prs = $al->in = $al->ns = array();
 		$al->install_files($files);
 		foreach ($classmap as $src=>$value) 
 			foreach ($value as $path)  
@@ -383,7 +400,7 @@ class Autoload extends Basic {
 		file_put_contents( self::$lock_file,
 			"<?php return ". var_export(array($al->ns,$al->in,$al->prs),true).';' );   
  
-		echo "<script>location=location.pathname</script>"; 
+		echo "loading...<script>location=location.pathname</script>"; 
 	}
 
 	public static function view(){

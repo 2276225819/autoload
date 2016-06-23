@@ -1,12 +1,24 @@
 {
 	"name":"2276225819/autoload",
 	"require":{
-		"topthink/thinkphp":"*",
-		"laravel/laravel":"5.0.*"
+		"2276225819/Jqview":"*",
+		"topthink/thinkphp":"*"	
 	},
 	"autoload":{
-		"classmap":["src"]
+		"classmap":["srcc"]
 	},
 	"repositories":[ 
+		{
+			"type":"package", 
+			"package":{
+				"name":"2276225819/Jqview", "version":"1.0.0", 
+				"require":{ "electrolinux/phpquery":"*" },
+				"dist": {  "url": "/packages/jqview.zip", "type": "zip" }
+			}
+		},
+		{
+			"type": "composer",  
+			"url":"https://packagist.phpcomposer.com/" 
+		}
 	]
 }
