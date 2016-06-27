@@ -1,8 +1,11 @@
 <?php
 namespace ___; 
-//版本匹配还是有问题
+//todo list: 
+//版本匹配还是有问题（ 版本号的~和^有什么区别？ 
+//动态更新的文件缓存（用多少存多少不要一次查找全部目录
+//可选的自动更新加载文件缓存（原版需要手动 composer update
 
-class Basic{ 
+class Autoload { 
 	public $config = '{
 		"require":[],
 		"require-dev":[],
@@ -26,20 +29,20 @@ class Basic{
 			}
 			$req = __DIR__.'/'.$package.'/'; 
 		}      
+ 
 		if( file_exists($req.'composer.json')) {
 			$data = json_decode( file_get_contents( $req.'composer.json'),true );
 			$this->data = array_merge_recursive($this->data,$data); 
-		}      
-
+		}       
 	}
-	public function getComposerItem($vendor,$base_url){
-	 
+	public function getComposerItem($vendor,$base_url){ 
 		$data = json_decode( $this->cget($base_url.'packages.json') ,true ) ;   
 		if(count($data['provider-includes']) < 2){
-			if($all = @$_SESSION['all_'.$base_url]);else{ 
+			$key = 'all_'.$base_url;
+			if($all = $this->cache($key));else{ echo "E";
 				foreach ($data['provider-includes'] as $url => $sha);//last    
 				$all = json_decode( $this->cget($base_url.str_replace('%hash%',end($sha),$url) ) ,true ) ;  
-				$_SESSION['_all'] = $all;
+				$this->cache($key,$all);
 			} 
 			if(empty($all['providers'][$vendor]))return;
 			$hash = end($all['providers'][$vendor]);  
@@ -66,7 +69,6 @@ class Basic{
 	
 	public function getTagList($vendor){
 		$arr = array(); 
-		//session_start();
 		foreach ($this->data['repositories'] as $value) { 
 			switch ($value['type']) {
 				case 'composer':$packages = $this->getComposerItem($vendor,$value['url']);  break;
@@ -98,8 +100,7 @@ class Basic{
 	}
 	public function loadVendor($req, $v ){   
 		$vendor = $req;
-		$vers = $this->getTagList($req); 
-
+		$vers = $this->getTagList($req);  
  		$ver = $this->version_match(array_keys($vers),$v); 
  		//print_r($vers);exit;
 
@@ -133,8 +134,7 @@ class Basic{
 			//'v'=>$v, "vs"=>$out,
 		);
 	}
-	public function version_compare($a,$b,$c='<')
-	{	 
+	public function version_compare($a,$b,$c='<') {	 
 		if($a[0]=='v')$a=substr($a,1);
 		if($b[0]=='v')$b=substr($b,1);
 		$aa = explode('.',$a); $bb = explode('.',$b); 
@@ -158,6 +158,16 @@ class Basic{
 	}
 
 
+	public function cache($k,$v=''){
+		if(!isset($_SESSION))session_start();
+		if(empty($v)) return isset($_SESSION[$k])?$_SESSION[$k]:null;
+		else $_SESSION[$k]=$v;/*
+		static $data;
+		if(empty($data))$data=json_decode(file_get_contents('.cache'),true);
+		if(empty($v))return $data[$k];
+		$data[$k]=$v; 
+		file_put_contents('.cache',$data);*/
+	}
  
 	public function unzip($vendor,$file ){
 		$basedir = __DIR__.'/'.$vendor.'/'; 
@@ -267,10 +277,10 @@ class Basic{
 		} 
 		foreach ($value['src'] as $src) { 
 			$src = dirname($value['vendor'])."/$src";  
-			$this->install_classmap($src,$class);
+			$this->install_classmap($src,array($class,$value['src'],$value['type']));
 		} 
 	} 
-	public function install_classmap($src=NULL,$cc=''){  
+	public function _install_classmap($src=NULL,$cc=''){  
 		if(strstr($src,'.php') || strstr($src,'.inc') ){
 			$data = file_get_contents($src); 
 			if(preg_match('/(class|interface|trait)\s+([\w_]+)[\s\w\\\, ]*{/',$data,$arrC)) { 
@@ -297,66 +307,55 @@ class Basic{
 				}
 				$this->install_classmap($path,$c2);    
 			}
-		}  
+		}   
+	}/**/
 
-	 
+	public function install_classmap($path,$cc=''){ 
+		foreach ((array)$path as $src) { 
+			if( is_dir($src) ){
+				if(substr($src,-1)!='/') $src.='/';//
+				foreach( glob($src.'*') as $p){ /*
+					if($c2 = $cc){
+						if( is_dir($path)) $c2.= basename( $path )  ;
+						if( substr($c2,-1,1) !='\\') $c2.='\\'; 
+					} */
+					$this->install_classmap( $p ,$cc);///,$c2  );    
+				}  
+			}elseif(strstr($src,'.php') || strstr($src,'.inc')){
+				$data = file_get_contents($src); 
+				if(preg_match('/(class|interface|trait)\s+([\w_]+)[\s\w\\\, ]*{/',$data,$arrC)) { 
+					list($_,$_,$cn) = $arrC;  
+					$class = $cn;
+					if(preg_match('/namespace\s+([\w\\\_]+);/',$data,$arrN)){
+						$class = $arrN[1].'\\'.$cn;			
+					}  
+					$this->ns[$class] = $src;  
+					$this->ns[$class.'|class']=array($cc);
+					
+					 /*
+					if($class != $cc.$cn ){
+						$this->ns[$cc.$cn] = $src;  
+						//print_r([$class,$cc.' '.$cn,$src]);   
+					} */
+				}
+				else{ 
+					//echo $src."\n"; 
+					//array_unshift($this->in,$src); 
+				} 
+			}
+		} 
 	}
+
+
 	public function install_files($files){
+		$in=array();
 		foreach ($files as $src => $value) {
 			foreach ($value as  $path) {
-				$this->in[]=dirname($src).'/'.$path;
+				$in[]=dirname($src).'/'.$path;
 				//array_unshift($this->in,dirname($src).'/'.$path);  
 			} 
 		}  
-	}  
-}
-
-class Autoload extends Basic {
-	
-	public static $lock_file= __DIR__."/composer.lock";
-	public static function bootstrap(){
-		$class = get_called_class();
-		if( $class::autoload() ); else{
-			set_time_limit(0);// 
-			if(isset($_GET['install'])){   
-				$class::install(); exit;
-			}
-			elseif(isset($_GET['package']) && isset($_GET['req']) && isset($_GET['ver']) ){    
-				$al = new $class($_GET['req']); 
-				if(empty($_GET['ver']))$_GET['ver']='*';
-				echo json_encode( $al->loadVendor($_GET['req'], $_GET['ver']) ); exit;
-			} 
-			elseif(isset($_GET['package'])){   
-				$al = new $class( $_GET['package'] );   
-				echo json_encode( $al->getRequire( ) );  exit;
-			}
-			//elseif(isset($_GET['tags'])){ 
-			//	echo json_encode( $al->getTagList($_GET['tags'])  ); exit;
-			//} 
-			else{
-				$class::view(); exit;
-			}   
-		}
-	}  
-	public static function autoload(){ 
-		if(file_exists(self::$lock_file)){ 
-			list($ns,$in,$prs) = include self::$lock_file;    
-			spl_autoload_register(function($name)use($ns){    
-				
-				if( isset($ns[$name]) ){
-					include_once $ns[$name];   
-				} else{  
-				//	echo "******"; 
-				}
-				//echo $name."<br> ";  
-			});    
-			if($in)foreach ($in as $value) { 
-				include_once $value;
-			}   
-			return true;
-		}else{
-			return false;
-		} 	
+		return $in;
 	}   
 	public static function install(){
 		//确认初始化完成不再继续安装
@@ -385,24 +384,76 @@ class Autoload extends Basic {
 			if(isset($data['autoload']['classmap'])){ 
 				$classmap[$v] = array_merge(@(array)$classmap[$v] , $data['autoload']['classmap'] );
 			} 
-		}    
+		}      
+
 		$class = get_called_class();
 		$al = new $class('');  
-		$al->prs = $al->in = $al->ns = array();
-		$al->install_files($files);
+		$al->prs  = $al->ns = array();
+ 
+		$in = $al->install_files($files);
 		foreach ($classmap as $src=>$value) 
 			foreach ($value as $path)  
 				$al->install_classmap( dirname($src).'/'.$path );    
+
+			
+
 		foreach ($vendor as $class=>$value) 
 			$al->install_psr($class,$value); 
-		//$al->prs=$vendor; 
- 
+		//$al->prs=$vendor; 　
+		$result = array($al->ns,$in,$al->prs);
 		file_put_contents( self::$lock_file,
-			"<?php return ". var_export(array($al->ns,$al->in,$al->prs),true).';' );   
- 
-		echo "loading...<script>location=location.pathname</script>"; 
+			"<?php return ". var_export($result,true).';' );   
+ 		return $result;
 	}
 
+
+  
+	public static $lock_file= __DIR__."/autoload.lock";
+	public static function bootstrap(){
+		$class = get_called_class();
+		if( $class::autoload() ); else{
+			set_time_limit(0);// 
+			if(isset($_GET['install'])){   
+				$class::install();
+				exit("loading...<script>location=location.pathname</script>");  
+			}
+			elseif(isset($_GET['package']) && isset($_GET['req']) && isset($_GET['ver']) ){    
+				$al = new $class($_GET['req']); 
+				if(empty($_GET['ver']))$_GET['ver']='*';
+				echo json_encode( $al->loadVendor($_GET['req'], $_GET['ver']) ); exit;
+			} 
+			elseif(isset($_GET['package'])){   
+				$al = new $class( $_GET['package'] );   
+				echo json_encode( $al->getRequire( ) );  exit;
+			}
+			//elseif(isset($_GET['tags'])){ 
+			//	echo json_encode( $al->getTagList($_GET['tags'])  ); exit;
+			//} 
+			else{
+				$class::view(); exit;
+			}   
+		}
+	}  
+	public static function autoload(){ 
+		if(file_exists(self::$lock_file)){ 
+			list($ns,$in,$prs) = include self::$lock_file;    
+			spl_autoload_register(function($name)use(&$ns){    
+				if( !isset($ns[$name]) ) list($ns) = self::install();  
+				if( !isset($ns[$name]) ){
+					list($_,$err) =  debug_backtrace() ; 
+					 die( "** [$name] {$err['file']}:{$err['line']}  ** " );
+				}
+				include_once $ns[$name];   
+				//echo $name."<br> ";  
+			});    
+			if($in)foreach ($in as $value) { 
+				include_once $value;
+			}   
+			return true;
+		}else{
+			return false;
+		} 	
+	}    
 	public static function view(){
 		
 		//安装未完成继续安装
@@ -460,20 +511,18 @@ class Autoload extends Basic {
 						url:"?package="+base+"&req="+vendor+'&ver='+ver ,
 						error:UPD,
 						success:function(d){   
-							if(d && d.substr)d=Function("return "+d)(); 
-							try{ 	
+							try{
+								if(d && d.substr)d=Function("return "+d)();   
 								console.log(d); 
-								if(d.vers)d.vers.error();
-								
-								
+								//if(d.vers)d.vers.error(); 
 								$i.addClass('act').html(d['name'] +' '+d['ver']);  
-								if(d['name']) R(d['name'],'#'+nid);	 
-						
+								if(d['name']) R(d['name'],'#'+nid);	   
 							}catch(e){
 								console.log([e,d]);
-								$i.addClass('err');
-								//$s.html('下载失败,点击重新下载'); 
-							}
+								$i.addClass('err');//$s.html('下载失败,点击重新下载'); 
+								setTimeout(UPD,1000);
+								return;
+							} 
 						}
 						
 					});
@@ -489,9 +538,7 @@ class Autoload extends Basic {
 						$sel.append("<option>"+vendor+'-'+d[k]+"</option>");
 					}
 				}); 
-			}
-			
-		 
+			} 
 			// $(document).on('click','i.load',function(){
 			// 	$(this).parent().parent().find('>div').toggle();
 			// });
