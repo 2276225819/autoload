@@ -159,14 +159,16 @@ class Autoload {
 
 
 	public function cache($k,$v=''){
+		/*/
 		if(!isset($_SESSION))session_start();
 		if(empty($v)) return isset($_SESSION[$k])?$_SESSION[$k]:null;
-		else $_SESSION[$k]=$v;/*
+		else $_SESSION[$k]=$v;
+		/*/
 		static $data;
-		if(empty($data))$data=json_decode(file_get_contents('.cache'),true);
+		if(empty($data))$data=json_decode(@file_get_contents(__DIR__.'/.cache')?:"{}",true);
 		if(empty($v))return $data[$k];
 		$data[$k]=$v; 
-		file_put_contents('.cache',$data);*/
+		file_put_contents(__DIR__.'/.cache',json_encode($data));
 	}
  
 	public function unzip($vendor,$file ){
