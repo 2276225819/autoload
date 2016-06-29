@@ -25,7 +25,8 @@ class Autoload {
 			if(file_exists($req.'composer.json')){ 
 				$local_data = json_decode( file_get_contents( $req.'composer.json'),true ); 
 				foreach (array('repositories') as $root)  //root
-					$this->data[$root] = array_merge_recursive( $local_data[$root],$this->data[$root]  );   
+					if(isset($local_data[$root]))
+						$this->data[$root] = array_merge_recursive( $local_data[$root],$this->data[$root]  );   
 			}
 			$req = __DIR__.'/'.$package.'/'; 
 		}      
@@ -108,7 +109,7 @@ class Autoload {
 			$out[]= $key.' '.$value ;
 		}
 		if(empty($vers[$ver]))
-			return array(  'msg'=>'package not found', 'match'=>$v, 'vers'=>$vers, 'ver'=>$ver  );
+			return array(  'msg'=>'package not found', 'match'=>$v, 'vers'=>$vers, 'result'=>$ver  );
 
 		$src = $vers[$ver]; 
 		$dir = __DIR__.'/'.$vendor;
@@ -215,10 +216,10 @@ class Autoload {
 		foreach (array_reverse($ors) as $val) {
 			if(!$val)continue; 
 			preg_match('/(\D*)([\d\.\*]+)/',$val,$arr);
-			array_shift($arr);  
+			array_shift($arr);   
 			if(empty($arr[0])){  
 				foreach ($list as $value)  
-					if(preg_match('/'.str_replace('\\*','\d+',preg_quote($arr[1])).'$/',$value)) 
+					if(preg_match('/'.str_replace('\\*','[^\.]+',preg_quote($arr[1])).'$/',$value)) 
 						return $value;   
 			}else
 			if($arr[0]=='~' or $arr[0]=='^'){
@@ -511,7 +512,10 @@ class Autoload {
 					$i.attr("class","load");  
 					$.ajax({ 
 						url:"?package="+base+"&req="+vendor+'&ver='+ver ,
-						error:UPD,
+						error:function(){
+							$i.addClass('err');//$s.html('下载失败,点击重新下载'); 
+							setTimeout(UPD,1000);
+						},
 						success:function(d){   
 							try{
 								if(d && d.substr)d=Function("return "+d)();   
